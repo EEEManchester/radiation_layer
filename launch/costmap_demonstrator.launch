@@ -1,0 +1,34 @@
+<launch>
+<!-- Set variables for filenames -->
+
+  <!-- Map file -->
+  <arg name="map_file" default="$(find radiation_layer)/data/map.yaml"/>
+
+  <!-- Costmap yaml file -->
+  <arg name="costmap_yaml" default="$(find radiation_layer)/launch/yaml/demonstration.yaml"/>
+
+  <!-- RVIZ config file -->
+  <arg name="rviz_config" default="$(find radiation_layer)/rviz/costmap_demo.rviz"/>
+
+
+<!-- Run the map server -->
+ 
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+
+<!-- Play radiation sensor data -->
+
+  <node name="rad_player" pkg="radiation_layer" type="playDatafile.py"/>
+
+
+<!-- launch costmap_2d node independently -->
+
+  <node name="costmap_2d" pkg="costmap_2d" type="costmap_2d_node" output="screen">
+    <rosparam file="$(arg costmap_yaml)" command="load" ns="costmap" />
+  </node>
+
+<!-- RVIZ for visualisation -->
+
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(arg rviz_config)" />
+
+</launch>

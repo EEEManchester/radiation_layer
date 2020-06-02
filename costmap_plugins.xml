@@ -1,0 +1,19 @@
+<class_libraries>
+  <!--  Format of library path = "lib/libNAMEOFCPPFILEORHEADERFILE"-->
+  <!-- Infact, this may be the add_library(NAME src/filename.cpp) NAME in CMakeLists.txt -->
+  <library path="lib/librad_layer"> 
+  <!-- Format of class type = "LAYERNAMESPACE::LAYERTYPENAME" in accordance with the PLUGINLIB_EXPORT_CLASS declaration -->
+    <class type="radiation_layer_namespace::RadLayer" base_class_type="costmap_2d::Layer">
+    <!-- Nice Description ^_^ -->
+      <description>Demo Layer that marks all points that were ever one meter in front of the robot</description>
+    </class>
+  </library>
+  <!-- Adding additional layers -->
+  <!--
+    <library path="lib/libsimple_layer">
+    <class type="simple_layer_namespace::SimpleLayer" base_class_type="costmap_2d::Layer">
+      <description>Demo Layer that adds a point 1 meter in front of the robot</description>
+    </class>
+  </library>
+  -->
+  </class_libraries>
