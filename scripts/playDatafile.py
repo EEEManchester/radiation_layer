@@ -34,7 +34,7 @@ class filePublisher(object):
 
         self.seq = 0
 
-        rate = rospy.Rate(1) #Rate in Hz
+        rate = rospy.Rate(2) #Rate in Hz
 
         while not rospy.is_shutdown():
             if self.seq < nSamples:

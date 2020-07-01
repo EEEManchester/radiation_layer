@@ -1,6 +1,7 @@
 #include<radiation_layer/rad_layer.h>
 #include <pluginlib/class_list_macros.h>
 
+#include <costmap_2d/footprint.h> // Added for footprint functions - inflation of radiation sensor
 #include <costmap_2d/costmap_math.h>  // Added for updateWithMax
 #include <cmath> // Required for basic maths operators
 
@@ -22,10 +23,11 @@ void RadLayer::onInitialize()
   ros::NodeHandle nh("~/" + name_), g_nh;
   current_ = true;
   default_value_ = NO_INFORMATION;  // What should the layer be filled with by default
+  rolling_window_ = layered_costmap_->isRolling();
 
   // Setup up clean averages storage
   averages_ = NULL;
-  n_obs_ = NULL;
+  weight_obs_= NULL;
   averages_size_ = 0;
 
   update_full_layer_ = false;
@@ -37,6 +39,18 @@ void RadLayer::onInitialize()
   // Get radiation topic name
   std::string radiation_topic;
   nh.param("radiation_topic", radiation_topic, std::string("radiation_topic"));
+
+  inflate_radiation_ = false;
+  sensor_footprint_ = makeSensorFootprintFromParams(nh);
+  nh.param("averaging_scale_length", averaging_scale_length_, 0.0);
+  nh.param("combination_method", combination_method_, 0);
+  nh.param("minimum_weight", minimum_weight_, 0.0);
+
+
+  
+  // ROS_INFO("%d", int(sensor_footprint_.size()));
+  
+
   // Setup subscriber to topic, callback function = radiationCB
   radiation_sub_ = g_nh.subscribe(radiation_topic, 1, &RadLayer::radiationCB, this);
 
@@ -50,10 +64,6 @@ void RadLayer::onInitialize()
 
 
   // Add dynamic reconfigure to layer
-  // dsrv_ = new dynamic_reconfigure::Server<costmap_2d::GenericPluginConfig>(nh);
-  // dynamic_reconfigure::Server<costmap_2d::GenericPluginConfig>::CallbackType cb = boost::bind(
-  //     &RadLayer::reconfigureCB, this, _1, _2);
-  // dsrv_->setCallback(cb);
   dsrv_ = new dynamic_reconfigure::Server<radiation_layer::RadiationLayerConfig>(nh);
   dynamic_reconfigure::Server<radiation_layer::RadiationLayerConfig>::CallbackType cb = boost::bind(
       &RadLayer::reconfigureCB, this, _1, _2);
@@ -64,8 +74,8 @@ void RadLayer::onInitialize()
 void RadLayer::matchSize()
 {
   // Cache current observation data
-  // first pair = x & y coords, second pair = n_obs and average
-  std::list<std::pair<std::pair<double,double>, std::pair<unsigned int,float> > > observation_cache;
+  // first pair = x & y coords, second pair = weight_obs and average
+  std::list<std::pair<std::pair<double,double>, std::pair<float,float> > > observation_cache;
   getCache(observation_cache);
 
   // Ensure local costmap layer size and resolution matches master
@@ -73,7 +83,7 @@ void RadLayer::matchSize()
   resizeMap(master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(),
             master->getOriginX(), master->getOriginY());
 
-  // Resize arrays for data averages and n_obs per cell
+  // Resize arrays for data averages and weight_obs per cell
   unsigned int size_x = master->getSizeInCellsX();
   unsigned int size_y = master->getSizeInCellsY();
   // Set up correct size for averages_
@@ -81,7 +91,7 @@ void RadLayer::matchSize()
     //ROS_WARN("RadLayer::updateCosts(): averages_ array is NULL");
     averages_size_ = size_x * size_y;
     averages_ = new float[averages_size_];
-    n_obs_ = new unsigned int[averages_size_];
+    weight_obs_ = new float[averages_size_];
   }
   else if (averages_size_ != size_x * size_y)
   {
@@ -89,32 +99,27 @@ void RadLayer::matchSize()
     delete[] averages_;
     averages_size_ = size_x * size_y;
     averages_ = new float[averages_size_];
-    n_obs_ = new unsigned int[averages_size_];
+    weight_obs_ = new float[averages_size_];
   }
-  memset(n_obs_, 0, size_x * size_y * sizeof(unsigned int));  // Fill n_observations with 0
+  std::fill_n(weight_obs_, averages_size_, 0.0);
   std::fill_n(averages_, averages_size_, std::numeric_limits<float>::quiet_NaN()); // Fill averages_ with nan
 
-  // Repopulate averages_ and n_obs_ with any cached data
+  // Repopulate averages_ and weight_obs with any cached data
 
-  for (std::list<std::pair<std::pair<double,double>, std::pair<unsigned int,float> > >::iterator cache_item = observation_cache.begin(); cache_item != observation_cache.end(); cache_item++) {
+  for (std::list<std::pair<std::pair<double,double>, std::pair<float,float> > >::iterator cache_item = observation_cache.begin(); cache_item != observation_cache.end(); cache_item++) {
     unsigned int idx_x, idx_y;  // Take x and y values and check they exist inside the map bounds, if so return x & y indices
     if (!worldToMap(cache_item -> first.first, cache_item -> first.second, idx_x, idx_y)) {
-      return;
+      continue;
     }
 
     unsigned int linear_idx = getIndex(idx_x, idx_y);  // Convert x and y cell index to linear index to reference average value storage later
 
-    n_obs_[linear_idx] = cache_item -> second.first;
+    weight_obs_[linear_idx] = cache_item -> second.first;
     averages_[linear_idx] = cache_item -> second.second;
   } //end for
   update_full_layer_ = true;
 }
 
-
-// void RadLayer::reconfigureCB(costmap_2d::GenericPluginConfig &config, uint32_t level)
-// {
-//   enabled_ = config.enabled;
-// }
 
 void RadLayer::reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint32_t level)
 {
@@ -174,55 +179,109 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       return;  // If cannot get transform return
     }
 
-
-    unsigned int idx_x, idx_y;  // Take x and y values and check they exist inside the map bounds, if so return x & y indices
-    if (!worldToMap(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), idx_x, idx_y)) {
-      ROS_WARN("Observation out of bounds");
-      return;
-    }
-
-    unsigned int linear_idx = getIndex(idx_x, idx_y);  // Convert x and y cell index to linear index to reference average value storage later
-
     // Extract radiation data value from image message - associated with camera green channel
     float value = obs -> data[1];  // Retrive 2nd channel (index 1) from data field in message
     // SHOULD PROBABLY DO SOME CHECKS HERE - index errors, no data errors, wrong format etc
 
-    n_obs_[linear_idx] = n_obs_[linear_idx] + 1; // Increase number of observation in cell by 1
+    // Vector of x and y cell indices
+    std::vector<costmap_2d::MapLocation> cell_locations;
 
-    // Catch first observation, where value will be nan and can't be averaged
-    if (n_obs_[linear_idx] == 1) {
-      averages_[linear_idx] = value;
-    }
-    else
+    if (inflate_radiation_) {
+      // Vector of x and y cell indices
+      std::vector<costmap_2d::MapLocation> footprint_locations;
+      // transformFootprint(x,y,yaw,footprint,footprint_out)
+      // As the footprint is circular, the yaw can be ignored (removes need for more TF and conversion)
+      //  Would try: double yaw = tf2::getYaw(pose.pose.orientation); - need to get the right thing out of transformStamped
+      std::vector<geometry_msgs::Point> transformed_footprint;
+      double yaw_sub = 0.0;
+      // Transform footprint to be centred about the sensor
+      costmap_2d::transformFootprint(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), yaw_sub, sensor_footprint_, transformed_footprint);
+      
+      // ROS_INFO("%d", int(transformed_footprint.size()));
+
+      for (unsigned int i = 0; i < transformed_footprint.size(); ++i)
+      {
+        costmap_2d::MapLocation loc;
+        if (worldToMap(transformed_footprint[i].x, transformed_footprint[i].y, loc.x, loc.y))
+        {
+          footprint_locations.push_back(loc);  // If footprint inbounds, push back
+        }
+      }
+      convexFillCells(footprint_locations, cell_locations);
+    } else {  // end if inflate_radiation_
+      costmap_2d::MapLocation loc;
+      if (!worldToMap(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), loc.x, loc.y)) {
+      ROS_WARN("Observation out of bounds");
+      continue;
+      }
+      cell_locations.push_back(loc);
+    }  // end if inflate_radiation
+    
+    for (size_t i = 0; i < cell_locations.size(); i++)
     {
-      // Perform weighted average for cell
-      averages_[linear_idx] = ((1.0/n_obs_[linear_idx])*value) + ((1.0 - 1.0/n_obs_[linear_idx])*averages_[linear_idx]);
-    }
+      unsigned int idx_x = cell_locations[i].x, idx_y = cell_locations[i].y;  // Take x and y values and check they exist inside the map bounds, if so return x & y indices
 
-    // Update list of updated cells for costmap
-    std::pair <unsigned int, float> data_pair (linear_idx, averages_[linear_idx]);
-    updates.push_back(data_pair);
+      // GET POLYGON AREA BASED ON MEASUREMENT LOCATION
+      // PRODUCE LIST OF CELL INDICES TO BE UPDATED INSIDE THE POLYGON
+      // FOR ELEMENTS IN LIST{UPDATE weight_obs_, calculate averages_}
+      unsigned int linear_idx = getIndex(idx_x, idx_y);  // Convert x and y cell index to linear index to reference average value storage later
+
+
+      
+
+      double cell_pos_x, cell_pos_y;
+      mapToWorld(idx_x, idx_y, cell_pos_x, cell_pos_y);
+      double dist = distance(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), cell_pos_x, cell_pos_y);
+      double dist_weighting = 1.0;
+      if (averaging_scale_length_ > 0.0)
+      {
+        dist_weighting = exp(-0.5 * pow((dist/(averaging_scale_length_)), 2.0));
+      }
+     
+
+      // Catch first observation, where value will be nan and can't be averaged
+      if (weight_obs_[linear_idx] == 0.0) {
+        averages_[linear_idx] = value;
+      }
+      else
+      {
+        // Perform weighted average for cell
+        // BASED ON CENTRE OF MASS EQUATION
+        averages_[linear_idx] = ( (dist_weighting * value)+ (weight_obs_[linear_idx]*averages_[linear_idx]) ) / (dist_weighting + weight_obs_[linear_idx]);
+        
+      }
+      weight_obs_[linear_idx] = weight_obs_[linear_idx] + dist_weighting;  // Update cell weight with total weight including last measurement
+      // Update list of updated cells for costmap
+      // NEED TO CHECK IF CELL INDEX IN PAIR LIST, THEREFORE UPDATE THAT INDEX, DON'T PUT THE INDEX IN TWICE, SAVE ON COMPUTATION
+      if (weight_obs_[linear_idx] >= minimum_weight_)  // Only update costmap cells if cell weight is above minimum
+      {
+        std::pair <unsigned int, float> data_pair (linear_idx, averages_[linear_idx]);
+        updates.push_back(data_pair);
+      }
+      
+      
+    }// end for loop over footprint cells
 
   } // end for loop over observations
 
 
 }
 
-void RadLayer::getCache(std::list<std::pair<std::pair<double,double>, std::pair<unsigned int,float> > > &observation_cache)
+void RadLayer::getCache(std::list<std::pair<std::pair<double,double>, std::pair<float,float> > > &observation_cache)
 {
   float* averages_copy;
-  unsigned int* n_obs_copy;
+  float* weight_obs_copy;
   unsigned int averages_size_copy;
 
   // Ensure observation data is copied before being erased or modified by another function
   boost::recursive_mutex::scoped_lock lock(cache_);
   averages_copy = averages_;
-  n_obs_copy = n_obs_;
+  weight_obs_copy = weight_obs_;
   averages_size_copy = averages_size_;
   boost::recursive_mutex::scoped_lock unlock(cache_);
 
   for (size_t i = 0; i < averages_size_copy; i++) {
-    if (n_obs_copy[i] > 0) {
+    if (weight_obs_copy[i] > 0.0) {
       unsigned int mx, my;
       double wx, wy;
       indexToCells(i, mx, my);  // Convert cell index to map cell (x and y index)
@@ -230,7 +289,7 @@ void RadLayer::getCache(std::list<std::pair<std::pair<double,double>, std::pair<
 
       // Pair up
       std::pair<double, double> cell_location (wx, wy);
-      std::pair<unsigned int, float> observation_data (n_obs_copy[i], averages_copy[i]);
+      std::pair<float, float> observation_data (weight_obs_copy[i], averages_copy[i]);
 
       observation_cache.push_back(std::make_pair(cell_location, observation_data));  //Push a pair of pairs to list
     }
@@ -258,21 +317,23 @@ void RadLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, do
   // if (!enabled_)
   //   return;
 
+  if (rolling_window_){
+    matchSize(); // Will cache all current radiation data, plus set the origin etc of the map
+  }
   std::list<std::pair<unsigned int, float> > updates;  // Store all updates for processing
 
   if (update_full_layer_) {
     for (size_t i = 0; i < averages_size_; i++) {
-      if (n_obs_[i] > 0) {  // If observations have been observed for that cell
+      if (weight_obs_[i] > 0.0) {  // If observations have been entered for that cell
         std::pair <unsigned int, float> data_pair (i, averages_[i]);  // Create index and average value pair
         updates.push_back(data_pair);  // Push back pair to updates
       }
     } // end for
     update_full_layer_ = false;
   }
-  else
-  {
-    updateObservations(updates);
-  }
+    
+  updateObservations(updates);// Include new observations
+  
 
   // Take all observation updates and mark costmap accordingly
   for (std::list<std::pair<unsigned int, float> >::iterator updt = updates.begin(); updt != updates.end(); updt++) {
@@ -280,7 +341,6 @@ void RadLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, do
     float temp_value = updt -> second;  // Second of pair = averaged float value
     costmap_[temp_idx] = scaledValue(temp_value);  // Set scaled (0-254) value based on thresholds in costmap
   }
-
 
   // THIS WORKED - TAKEN FROM INFLATION LAYER
   // Allows for total enable/disable of layer, removing all cost when !enabled
@@ -298,11 +358,29 @@ void RadLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int mi
     return;
   }
 
-
+switch (combination_method_)
+  {
+    case 0:  // Maximum
+      updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+      break;
+    case 1:  // Overwrite
+      updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+      break;
+    case 2:  // Addition
+      updateWithAddition(master_grid, min_i, min_j, max_i, max_j);
+      break;
+    case 3:  // Maximum, preserve No Info
+      updatePreserveNoInfo(master_grid, min_i, min_j, max_i, max_j);
+      break;  
+    default:  // Maximum
+      updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+      break;
+  }
   // UPDATE WITH MAX //
   // Nice behaviour because it maintains lethal obstacles from other layers
   // if (master_cost ==  NO_INFORMATION || master_cost < local_cost): update
-  updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+  // updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+  // updatePreserveNoInfo(master_grid, min_i, min_j, max_i, max_j);
 
   // UPDATE WITH OVERWRITE //
   // Regardless of other layers, overwrite
@@ -313,6 +391,73 @@ void RadLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int mi
   // update with master_cost + local_cost, up to max_val = 253 (i.e. LETHAL_OBSTACLE - 1)
   // updateWithAddition(master_grid, min_i, min_j, max_i, max_j);
 
+}
+
+void RadLayer::updatePreserveNoInfo(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
+{
+  if (!enabled_)
+    return;
+
+  unsigned char* master_array = master_grid.getCharMap();
+  unsigned int span = master_grid.getSizeInCellsX();
+
+  for (int j = min_j; j < max_j; j++)
+  {
+    unsigned int it = j * span + min_i;
+    for (int i = min_i; i < max_i; i++)
+    {
+      if (costmap_[it] == NO_INFORMATION){
+        it++;
+        continue;
+      }
+
+      unsigned char old_cost = master_array[it];
+      if (old_cost < costmap_[it])
+        master_array[it] = costmap_[it];
+      it++;
+    }
+  }
+}
+
+std::vector<geometry_msgs::Point> RadLayer::makeSensorFootprintFromParams(ros::NodeHandle& nh)
+{
+  std::string full_param_name;
+  std::string full_radius_param_name;
+  std::vector<geometry_msgs::Point> points;
+
+  if (nh.searchParam("radiation_footprint", full_param_name))
+  {
+    XmlRpc::XmlRpcValue footprint_xmlrpc;
+    nh.getParam(full_param_name, footprint_xmlrpc);
+
+    if (footprint_xmlrpc.getType() == XmlRpc::XmlRpcValue::TypeString &&
+        footprint_xmlrpc != "" && footprint_xmlrpc != "[]")
+    {
+      if (costmap_2d::makeFootprintFromString(std::string(footprint_xmlrpc), points))
+      {
+        costmap_2d::writeFootprintToParam(nh, points);
+        inflate_radiation_ = true;
+        return points;
+      }
+    }
+    else if (footprint_xmlrpc.getType() == XmlRpc::XmlRpcValue::TypeArray  && footprint_xmlrpc.size() > 2)
+    {
+      points = costmap_2d::makeFootprintFromXMLRPC(footprint_xmlrpc, full_param_name);
+      costmap_2d::writeFootprintToParam(nh, points);
+      inflate_radiation_ = true;
+      return points;
+    }
+  }
+
+  if (nh.searchParam("radiation_radius", full_radius_param_name))
+  {
+    double radiation_radius;
+    nh.param(full_radius_param_name, radiation_radius, 0.0);
+    points = costmap_2d::makeFootprintFromRadius(radiation_radius);
+    nh.setParam("radiation_radius", radiation_radius);
+    inflate_radiation_ = true;
+  }
+  return points;
 }
 
 } // end namespace

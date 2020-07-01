@@ -1,0 +1,50 @@
+# Costmap2D options
+global_frame: map
+robot_base_frame: base_link
+update_frequency: 5.0  # (Hz) How often is the costmap updated
+publish_frequency: 1.0  # (Hz) How often is the costmap occupancy grid published
+transform_tolerance: 1.0 # Time in seconds TF is willing to wait for update
+
+# Costmap Dimensions Params
+#rolling_window: false
+#origin_x: 0.0
+#origin_y: 0.0
+#width: 10
+#height: 10
+#resolution: 0.05
+
+
+#footprint: [[-0.325, -0.325], [-0.325, 0.325], [0.325, 0.325], [0.46, 0.0], [0.325, -0.325]]
+robot_radius: 0.18
+footprint_padding: 0.00
+
+
+plugins: 
+    - {name: static_map,       type: "costmap_2d::StaticLayer"}  # Static occupany grid from SLAM or pre-made map
+#    - {name: obstacles,        type: "costmap_2d::VoxelLayer"}  # Obstacles monitored by range sensors (e.g. lidar, depth cameras)
+#    - {name: inflation,        type: "costmap_2d::InflationLayer"}  # Inflation of obstacles into configuration space of robot
+    - {name: radiation,        type: "radiation_layer_namespace::RadLayer"} # Radiation sensor data
+
+static_map:
+    map_topic: map
+    subscribe_to_updates: true 
+    lethal_cost_threshold: 100
+# Other options:= first_map_only: false, track_known_space: true, use_maximum: false, unknown_cost_value: int(-1), trinary_costmap: true
+
+#obstacles:
+#    observation_sources: laser_scan_sensor
+#    laser_scan_sensor: {sensor_frame: laser, data_type: LaserScan, topic: scan, marking: true, clearing: true, obstacle_range}
+# Other options and default values:= inf_is_valid: false, min_obstacle_height: 0.0, max_obstacle_height: 2.0, expected_update_rate: 0.0, observation_persistence: 0.0
+# Not sure about these options, they might need to be placed globally above:= obstacle_range: 2.5 (ignore anything further than this), raytrace_range = 3.0 (only mark freespace up to this distance), transform_tolerance: 0.3
+
+inflation:
+    inflation_radius: 0.10
+    cost_scaling_factor: 10.0
+
+radiation:
+    radiation_topic: radiationTopic
+#    radiation_footprint: [[-0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0.5, -0.5]]
+    radiation_radius: 0.5
+    averaging_scale_length: 0.15  # Scale (variance mu of Gaussian kernel) in metres
+    combination_method: 3  # default - 0 = UpdateWithMax, 1 = UpdateWithOverwrite, 2 = UpdateWithAddition, 3 = updateWithMaxPreserveNoInfo
+    minimum_weight: 0.00  # default = 0.0, only update costmap with cells with weight above value

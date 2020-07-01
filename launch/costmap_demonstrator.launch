@@ -4,8 +4,9 @@
   <!-- Map file -->
   <arg name="map_file" default="$(find radiation_layer)/data/map.yaml"/>
 
-  <!-- Costmap yaml file -->
-  <arg name="costmap_yaml" default="$(find radiation_layer)/launch/yaml/demonstration.yaml"/>
+  <!-- Costmap yaml files -->
+  <arg name="global_costmap_yaml" default="$(find radiation_layer)/launch/yaml/global_demonstration.yaml"/>
+  <arg name="local_costmap_yaml" default="$(find radiation_layer)/launch/yaml/local_demonstration.yaml"/>
 
   <!-- RVIZ config file -->
   <arg name="rviz_config" default="$(find radiation_layer)/rviz/costmap_demo.rviz"/>
@@ -23,8 +24,12 @@
 
 <!-- launch costmap_2d node independently -->
 
-  <node name="costmap_2d" pkg="costmap_2d" type="costmap_2d_node" output="screen">
-    <rosparam file="$(arg costmap_yaml)" command="load" ns="costmap" />
+  <node name="global_costmap_2d" pkg="costmap_2d" type="costmap_2d_node" output="screen">
+    <rosparam file="$(arg global_costmap_yaml)" command="load" ns="costmap" />
+  </node>
+
+  <node name="local_costmap_2d" pkg="costmap_2d" type="costmap_2d_node" output="screen">
+    <rosparam file="$(arg local_costmap_yaml)" command="load" ns="costmap" />
   </node>
 
 <!-- RVIZ for visualisation -->

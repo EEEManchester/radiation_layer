@@ -1,18 +1,26 @@
 # Costmap2D options
 global_frame: map
 robot_base_frame: base_link
-update_frequency: 5.0
-publish_frequency: 1.0
-transform_tolerance: 1.0 # Not sure about this one
+update_frequency: 5.0  # (Hz) How often is the costmap updated
+publish_frequency: 1.0  # (Hz) How often is the costmap occupancy grid published
+transform_tolerance: 1.0 # Time in seconds TF is willing to wait for update
+
+# Costmap Dimensions Params
+rolling_window: true  # Default false, if true costmap origin is in robot_base_frame.  When false, costmap is in world frame
+origin_x: 0.0  # Costmap origin position in frame
+origin_y: 0.0
+width: 3  # Dimenions of costmap in metres
+height: 3
+resolution: 0.05  # Resolution of each square cell in metres
 
 
-#footprint: [[-0.325, -0.325], [-0.325, 0.325], [0.325, 0.325], [0.46, 0.0], [0.325, -0.325]]
-robot_radius: 0.18
+#footprint: [[-0.325, -0.325], [-0.325, 0.325], [0.325, 0.325], [0.46, 0.0], [0.325, -0.325]]  # Footprint of robot in robot_base_frame frame in metres.  Three or more points required
+robot_radius: 0.18  # Radius of robot in metres
 footprint_padding: 0.00
 
 
 plugins: 
-    - {name: static_map,       type: "costmap_2d::StaticLayer"}  # Static occupany grid from SLAM or pre-made map
+#    - {name: static_map,       type: "costmap_2d::StaticLayer"}  # Static occupany grid from SLAM or pre-made map
 #    - {name: obstacles,        type: "costmap_2d::VoxelLayer"}  # Obstacles monitored by range sensors (e.g. lidar, depth cameras)
 #    - {name: inflation,        type: "costmap_2d::InflationLayer"}  # Inflation of obstacles into configuration space of robot
     - {name: radiation,        type: "radiation_layer_namespace::RadLayer"} # Radiation sensor data
@@ -35,4 +43,8 @@ inflation:
 
 radiation:
     radiation_topic: radiationTopic
-
+#    radiation_footprint: [[-0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0.5, -0.5]]
+    radiation_radius: 0.5
+    averaging_scale_length: 0.15  # Scale (variance mu of Gaussian kernel) in metres
+    combination_method: 0  # default - 0 = UpdateWithMax, 1 = UpdateWithOverwrite, 2 = UpdateWithAddition, 3 = updateWithMaxPreserveNoInfo
+    minimum_weight: 0.02  # default = 0.0, only update costmap with cells with weight above value

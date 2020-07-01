@@ -22,7 +22,7 @@ This package currently has no dependancies on other packages, besides the stock 
 
 # How it works
 
-The plugin layer subscribes to a stamped topic representing ionising radiation, and parses the location (using TF) and intensity of radiation to a cost on the costmap.  The radiation layer operates at the same resolution and size as the main costmap.
+The plugin layer subscribes to a stamped topic representing ionising radiation, and parses the location (using TF) and intensity of radiation to a cost on the costmap.  The radiation layer operates at the same resolution and size as the main costmap, or defined in a yaml file.
 
 The average radiation value at each costmap cell is maintained, even when the costmap is resized.  Radiation value can be any units or scale (e.g. counts per second, Sv/hr), as the actual cost is calculated based on upper and lower thresholds.  Using thresholds allows for the robot to ignore areas of low radiation (e.g. background levels), and completely avoid areas with elevated radiation (e.g. high enough to immediately cause an electronic fault).
 
@@ -34,6 +34,28 @@ cost = 254 * (radiation_value - lower_threshold) / (upper_threshold - lower_thre
 The upper and lower thresholds are managed by the user, and can be changed at any time through use of [dynamically reconfigurable](http://wiki.ros.org/dynamic_reconfigure) parameters.
 
 When the costmap is resized, all the averaged radiation values on a per grid cell basis are temporarily stored, then the costmap is repopulated once the costmap has been expanded.  In the event that the threshold values are altered (and therefore the cost 0-254 has changed), the entire plugin layer cost is recalculated and sent out to the rest of the costmap.
+
+## Inflating Cost
+
+Updating individual cells is useful, however, it is better for path planners to inflate the cost to a reasonable scale length of the robot. Users can define this scale length using ```radiation_radius``` or ```radiation_footprint``` options in the yaml file (which is covered later).  These act identically to the usual robot footprint parameters, but can not be reconfigured once the costmap layer is running.  The ```radiation_footprint``` must have three or more vertices.  If no valid radius or footprint is provided, the layer will default to averaging individual based on observation location.  The method of averaging is explained in the next section.
+
+## Inverse Distance Weighting
+
+To gain the estimated average of a costmap cell based on surrounding observations, the principle of distance weighting is used, i.e. observations which are closer to the cell are more likely to be closer to the real value in the cell compared to those further away.  Things that are close are more likely to be similar.
+
+This is achieved using a Gaussian kernel, values close to the observation (distance = 0.0) have weightings close to 1.0, which tails off as a function of distance.  The scale length of this Gaussian kernel is given by ```averaging_scale_length``` in the appropriate yaml file.  If 0.0 or undefined, the averaging will happen with equal weighting (1.0) across the footprint regardless of distance from the observation.  Equal weighting is generally not recommended.
+
+The weight, <img src="https://render.githubusercontent.com/render/math?math=w">, is given by:
+<img src="https://render.githubusercontent.com/render/math?math=w%20%3D%20e%5E%7B-%5Cfrac%7B1%7D%7B2%7D%20%5Cleft(%20%5Cfrac%7Bd%7D%7Bs%7D%20%5Cright)%5E2%7D">
+where <img src="https://render.githubusercontent.com/render/math?math=d"> is the euclidean distance between the observation and the cell centre, and <img src="https://render.githubusercontent.com/render/math?math=s"> is the averaging scale length.  The larger the scale length factor, the greater the cells weighting as a function of distance.  This means the weighting can be tuned to an appropriate length for the system.
+
+
+The averaged value of a cell in the costmap, <img src="https://render.githubusercontent.com/render/math?math=v_%7Bi%7D">, given a new observation in time, <img src="https://render.githubusercontent.com/render/math?math=O_%7Bt%7D"> is geometrically averaged with the existing total and weight and averaged value previous to the new observation:
+<img src="https://render.githubusercontent.com/render/math?math=v_%7Bi%7D%20%3D%20%20%5Cfrac%7BO_%7Bt%7Dw_%7Bi%7D%20%2B%20%5Csum_%7Bj%3D1%7D%5E%7Bi-1%7D%20v_%7Bj%7Dw_%7Bj%7D%7D%7Bw_%7Bi%7D%20%2B%20%5Csum_%7Bj%3D1%7D%5E%7Bi-1%7D%20w_%7Bj%7D%7D">
+
+
+This is strictly the average for raw observation values, i.e. they are stored as floating point values, not integer 0-255 values.  The scaling factor mentioned previously converts the floating averages into integer cost values, allowing for cost to be scaled dynamically.
+ 
 
 ## Running an example
 Once the package is installed, the example launch file can be run using:
@@ -79,12 +101,27 @@ plugins:
     - {name: inflation,        type: "costmap_2d::InflationLayer"}
     - {name: radiation,        type: "radiation_layer_namespace::RadLayer"}
 ```
-results in the ```inflation``` plugin layer only operating on the levels above itself (i.e. static_map and obstacles), not the ```radiation``` layer.  Order of plugins may affect the desired output and performance of the costmap.  To specific the topic name of the radiation sensor, use the snippet
+results in the ```inflation``` plugin layer only operating on the levels above itself (i.e. static_map and obstacles), not the ```radiation``` layer.  Order of plugins may affect the desired output and performance of the costmap.  To specify the topic name of the radiation sensor, use the snippet
 ```
 radiation:
     radiation_topic: radiationTopic
 ```
-with ```radiation:``` being the same name as in the previous plugins lists.
+with ```radiation:``` being the same name as in the previous plugins lists.  The default topic name is ```radiation_topic```.
+
+There are more options which can passed to the costmap layer including:
+
+```
+    radiation_footprint: # List of vertices in format [[x0, y0], [x1, y1], [x2, y2], ..., [xN, yN]]
+    radiation_radius: # radius in metres e.g. 0.5
+    averaging_scale_length:  # distance in metres e.g. 0.2
+    combination_method: # How are costmap costs integrated with other layers above, using integer values e.g. 1
+    minimum_weight: # Total weight of cell before added to costmap (used with IDW)
+```
+
+Footprint and radius perform identically to those used of the robot footprint, however, this is a footprint around the frame of the sensor, not the robot.  The footprint argument will supersede any radius arguments, ensure the footprint argument is missing or commented out if wishing to use radius value.  The average scale length has been covered earlier, and ```combination_method``` allows the user to define how cost is incorporated in the layered costmap.  This includes taking the maximum value of all layers (0), overwriting all other layers (1), addition with cost of other layers (2), and maximum value whilst preserving unknown space (3).  Default is 0 (keep maximum value of all layers).
+
+The option ```minimum_weight``` can be useful when the edges of an inflated space are greatly different from the local average, and is causing issues with path planning.  By requiring a minimum total cell weight, only cells which have seen multiple observations, or very nearby observations are updated in the costmap.  It is recommended this is kept to the default value of ```0.0```.
+
 
 # Bugs & Feature Requests
 Please report bugs and request features using the [Issue Tracker](https://github.com/EEEManchester/radiation_layer/issues).

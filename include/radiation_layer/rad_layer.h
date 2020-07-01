@@ -44,15 +44,22 @@ private:
   void updateObservations(std::list<std::pair<unsigned int, float> > &updates); // Process recent observations and return value to be added to costmap
   float* averages_;
   unsigned int* n_obs_;
+  float* weight_obs_;
   unsigned int averages_size_;
 
   bool update_full_layer_;
+  bool rolling_window_;
 
-  void getCache(std::list<std::pair<std::pair<double,double>, std::pair<unsigned int,float> > > &observation_cache);
+  void getCache(std::list<std::pair<std::pair<double,double>, std::pair<float,float> > > &observation_cache);
 
   double upper_threshold_, lower_threshold_, ut_, lt_;
   int upper_threshold_scale_, lower_threshold_scale_;
   unsigned int scaledValue(float value);
+
+  double averaging_scale_length_, minimum_weight_;
+  bool inflate_radiation_;
+  int combination_method_;
+  std::vector<geometry_msgs::Point> sensor_footprint_;
 
   ros::Subscriber radiation_sub_;
   std::list<sensor_msgs::Image> radiation_msg_buffer_;
@@ -60,6 +67,9 @@ private:
 
   boost::recursive_mutex lock_; // Stop observation buffer being modified by multiple functions at once
   boost::recursive_mutex cache_;  // Stop cache from being modified when performing resizing
+
+  void updatePreserveNoInfo(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j);
+  std::vector<geometry_msgs::Point> makeSensorFootprintFromParams(ros::NodeHandle& nh);
 
 };
 }
