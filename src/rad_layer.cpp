@@ -21,6 +21,7 @@ RadLayer::RadLayer() {}
 void RadLayer::onInitialize()
 {
   ros::NodeHandle nh("~/" + name_), g_nh;
+  node_name_ = ros::this_node::getName() + "/" + name_; // Useful for logging to user console when many layers are running
   current_ = true;
   default_value_ = NO_INFORMATION;  // What should the layer be filled with by default
   rolling_window_ = layered_costmap_->isRolling();
@@ -47,20 +48,20 @@ void RadLayer::onInitialize()
   nh.param("minimum_weight", minimum_weight_, 0.0);
 
 
-  
-  // ROS_INFO("%d", int(sensor_footprint_.size()));
-  
-
   // Setup subscriber to topic, callback function = radiationCB
   radiation_sub_ = g_nh.subscribe(radiation_topic, 1, &RadLayer::radiationCB, this);
 
   // Initialise threshold values - WILL REPLACE WITH PARAMETERS LATER
-  upper_threshold_ = 0.2;  // At what averaged float value will = 254 (LETHAL_OBSTACLE)
+  upper_threshold_ = 0.2;  // At what averaged float value will = 254 (LETHAL_OBSTACLE) or 252 when not using lethal cost
   upper_threshold_scale_ = 3;
   ut_ = upper_threshold_ * pow(10.0, upper_threshold_scale_);
   lower_threshold_ = 1; // Cut off value where averaged float values are igored
   lower_threshold_scale_ = 0;
   lt_ = lower_threshold_ * pow(10.0, lower_threshold_scale_);
+  use_lethal_ = false;
+  max_cost_ = INSCRIBED_INFLATED_OBSTACLE - 1;
+
+  
 
 
   // Add dynamic reconfigure to layer
@@ -124,20 +125,49 @@ void RadLayer::matchSize()
 void RadLayer::reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint32_t level)
 {
   // If threshold values change, recompute entire costmap
-  if (config.lower_threshold != lower_threshold_ || config.lower_threshold_scale != lower_threshold_scale_ || config.upper_threshold != upper_threshold_ || config.upper_threshold_scale != upper_threshold_scale_) {
+  if (config.lower_threshold != lower_threshold_ || config.lower_threshold_scale != lower_threshold_scale_ || config.upper_threshold != upper_threshold_ || config.upper_threshold_scale != upper_threshold_scale_ || config.use_lethal != use_lethal_) {
     update_full_layer_ = true;  // Flag that all cell costs should be recalculated
   }
+  
+    bool previous_enabled = enabled_;
     enabled_ = config.enabled;
 
+    double previous_lt = lt_;
     lower_threshold_ = config.lower_threshold;
     lower_threshold_scale_ = config.lower_threshold_scale;
     lt_ = lower_threshold_ * pow(10.0, lower_threshold_scale_);
 
+    double previous_ut = ut_;
     upper_threshold_ = config.upper_threshold;
     upper_threshold_scale_ = config.upper_threshold_scale;
     ut_ = upper_threshold_ * pow(10.0, upper_threshold_scale_);
 
-    ROS_INFO("Updated thresholds: Lower= %.2f, Upper= %.2f", lt_, ut_);
+    bool previous_use_lethal = use_lethal_;
+    use_lethal_ = config.use_lethal;
+    max_cost_ = use_lethal_ ? LETHAL_OBSTACLE : INSCRIBED_INFLATED_OBSTACLE - 1;  // If true, set max_cost_ lethal_obstacle, else set to 252 (use of ? is a stand in for a if-else statement)
+    
+
+    // Used for logging changes in layer parameters
+    // Enabled
+    if (enabled_ != previous_enabled)
+    {
+      //ROS_INFO(config.enabled ? ("Layer Enabled") : ("Layer Disabled"));
+      ROS_INFO("%s: %s", node_name_.c_str(), enabled_ ? "Enabled" : "Disabled");
+    }  
+
+    // Thresholds
+    if (lt_ != previous_lt || ut_ != previous_ut)
+    {
+      ROS_INFO("%s: Thresholds: Lower= %.2f, Upper= %.2f", node_name_.c_str(), lt_, ut_);
+    }
+
+    // Use lethal
+    if (use_lethal_ != previous_use_lethal)
+    {
+      ROS_INFO("%s: %s", node_name_.c_str(), use_lethal_ ? "Lethal Cost Enabled" : "Lethal Cost Disabled");
+    }
+       
+    
 }
 
 void RadLayer::radiationCB(const sensor_msgs::Image& rad_msg)
@@ -299,9 +329,9 @@ void RadLayer::getCache(std::list<std::pair<std::pair<double,double>, std::pair<
 
 unsigned int RadLayer::scaledValue(float value)
 {
-  int scaled_value = int(LETHAL_OBSTACLE * ((value - lt_) / (ut_ - lt_) ) );
-  if (scaled_value > LETHAL_OBSTACLE) { // If cost value > LETHAL_OBSTACLE, then limit to LETHAL_OBSTACLE
-    scaled_value = LETHAL_OBSTACLE;
+  int scaled_value = int(max_cost_ * ((value - lt_) / (ut_ - lt_) ) );
+  if (scaled_value > max_cost_) { // If cost value > LETHAL_OBSTACLE, then limit to LETHAL_OBSTACLE
+    scaled_value = max_cost_;
   }
   if (scaled_value < FREE_SPACE) {
     scaled_value = FREE_SPACE;  // If cost value < 0, then limit to FREE_SPACE
@@ -380,6 +410,10 @@ switch (combination_method_)
   // Nice behaviour because it maintains lethal obstacles from other layers
   // if (master_cost ==  NO_INFORMATION || master_cost < local_cost): update
   // updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+
+  // UPDATE WITH MAX PRESERVE NO INFO
+  // Same as updateWithMax, however, it does not overwrite NO_INFO (255) cells
+  // This is useful for only computing cost for cells observed by a LiDAR or an existing map
   // updatePreserveNoInfo(master_grid, min_i, min_j, max_i, max_j);
 
   // UPDATE WITH OVERWRITE //

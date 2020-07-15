@@ -47,13 +47,15 @@ private:
   float* weight_obs_;
   unsigned int averages_size_;
 
+  std::string node_name_;
   bool update_full_layer_;
   bool rolling_window_;
+  bool use_lethal_;
 
   void getCache(std::list<std::pair<std::pair<double,double>, std::pair<float,float> > > &observation_cache);
 
   double upper_threshold_, lower_threshold_, ut_, lt_;
-  int upper_threshold_scale_, lower_threshold_scale_;
+  int upper_threshold_scale_, lower_threshold_scale_, max_cost_;
   unsigned int scaledValue(float value);
 
   double averaging_scale_length_, minimum_weight_;
@@ -64,6 +66,7 @@ private:
   ros::Subscriber radiation_sub_;
   std::list<sensor_msgs::Image> radiation_msg_buffer_;
   std::string global_frame_; // Global frame of costmap
+
 
   boost::recursive_mutex lock_; // Stop observation buffer being modified by multiple functions at once
   boost::recursive_mutex cache_;  // Stop cache from being modified when performing resizing
