@@ -9,7 +9,9 @@
 #include <dynamic_reconfigure/server.h>
 
 //#include <message_filters/subscriber.h>
-#include <sensor_msgs/Image.h>
+
+#include <tf2_ros/transform_listener.h> //migrate to tf2
+#include <radiation_layer/Radeye.h>
 
 //#include <tf2_ros/buffer.h>
 //#include <ros/time.h>
@@ -40,7 +42,7 @@ private:
   void reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint32_t level);
   dynamic_reconfigure::Server<radiation_layer::RadiationLayerConfig> *dsrv_;
 
-  void radiationCB(const sensor_msgs::Image& rad_msg); // Callback for incoming radiation messages
+  void radiationCB(const radiation_layer::Radeye& rad_msg); // Callback for incoming radiation messages
   void updateObservations(std::list<std::pair<unsigned int, float> > &updates); // Process recent observations and return value to be added to costmap
   float* averages_;
   unsigned int* n_obs_;
@@ -64,7 +66,7 @@ private:
   std::vector<geometry_msgs::Point> sensor_footprint_;
 
   ros::Subscriber radiation_sub_;
-  std::list<sensor_msgs::Image> radiation_msg_buffer_;
+  std::list<radiation_layer::Radeye> radiation_msg_buffer_;
   std::string global_frame_; // Global frame of costmap
 
 
@@ -73,6 +75,10 @@ private:
 
   void updatePreserveNoInfo(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j);
   std::vector<geometry_msgs::Point> makeSensorFootprintFromParams(ros::NodeHandle& nh);
+
+  //migrate to tf_2
+  tf2_ros::Buffer* tfBuffer;
+  tf2_ros::TransformListener* tfl;
 
 };
 }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(radiation_layer)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -10,6 +10,8 @@ project(radiation_layer)
 find_package(catkin REQUIRED COMPONENTS
   costmap_2d
   dynamic_reconfigure
+  std_msgs
+  tf2
   message_generation
   roscpp
 )
@@ -47,12 +49,10 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+ add_message_files(
+   FILES
+   Radeye.msg
+ )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -69,10 +69,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -103,9 +103,9 @@ generate_dynamic_reconfigure_options(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES radiation_layer
-#  CATKIN_DEPENDS costmap_2d dynamic_reconfigure message_generation roscpp
+ INCLUDE_DIRS include
+ LIBRARIES radiation_layer
+ CATKIN_DEPENDS costmap_2d dynamic_reconfigure message_runtime message_generation roscpp std_msgs tf2
 #  DEPENDS system_lib
 )
 
@@ -116,8 +116,8 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
-  ${catkin_INCLUDE_DIRS} include
+  include include include/radiation_layer
+  ${catkin_INCLUDE_DIRS} 
 )
 
 ## Declare a C++ library

@@ -5,6 +5,7 @@ import rospkg # Used to find path to data file
 import numpy as np # Used for simplified data file reading
 import geometry_msgs.msg as gmsg
 import sensor_msgs.msg as senmsg
+import radiation_layer.msg as rad_layer
 import tf2_ros as tf2
 
 
@@ -15,7 +16,7 @@ class filePublisher(object):
         rospy.init_node("radiationFromFile") # Init node called "radiationFromFile"
         radiationTopic = rospy.get_param("~radiationName","radiationTopic") # Name of the topic containing radiation data
 
-	self.radiationPublisher = rospy.Publisher(radiationTopic, senmsg.Image, queue_size=2) # Publisher of image messages carrying radiation information
+	self.radiationPublisher = rospy.Publisher(radiationTopic, rad_layer.Radeye, queue_size=2) # Publisher of image messages carrying radiation information
         self.globalFrame = rospy.get_param("~globalFrame","map") # Set the frame in which the pointcloud should be referenced to
         self.childFrame = rospy.get_param("~childFrame","base_link") # Set the frame in which the pointcloud should be referenced to
 
@@ -48,22 +49,17 @@ class filePublisher(object):
 	# Update TF to match sensor location in x, y, z
         self.setTF(data[0], data[1], data[2], time)
 	
-	# Create blank image message
-        message = senmsg.Image()
+	# Create blank RadEye message
+        message = rad_layer.Radeye()
 	# Populate header information
 	message.header.seq = self.seq
 	message.header.stamp = time
         message.header.frame_id = self.childFrame
-	# Set encoding type
-	message.encoding = 'rgb8'
-	# Single pixel camera
-        message.height = 1
-	message.width = 1
-	
+
 	
 	# Set value of pixel to match radiation value
 	# Green channel = int( intensity modifier * radiation counts data)
-        message.data = [0, int(self.intensity_scale_factor*data[3]), 0] # Red, GREEN, blue channels, only green is populated
+        message.measurement = self.intensity_scale_factor*data[3] # Red, GREEN, blue channels, only green is populated
         self.radiationPublisher.publish(message)
         self.seq += 1
 	

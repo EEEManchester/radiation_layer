@@ -5,6 +5,8 @@
 #include <costmap_2d/costmap_math.h>  // Added for updateWithMax
 #include <cmath> // Required for basic maths operators
 
+#include <geometry_msgs/TransformStamped.h> //migrate to tf2
+
 PLUGINLIB_EXPORT_CLASS(radiation_layer_namespace::RadLayer, costmap_2d::Layer)
 
 using costmap_2d::NO_INFORMATION;  // 255
@@ -25,6 +27,10 @@ void RadLayer::onInitialize()
   current_ = true;
   default_value_ = NO_INFORMATION;  // What should the layer be filled with by default
   rolling_window_ = layered_costmap_->isRolling();
+
+  //migrate to tf2
+  this->tfBuffer = new tf2_ros::Buffer(ros::Duration(10));
+  this->tfl = new tf2_ros::TransformListener(*tfBuffer);
 
   // Setup up clean averages storage
   averages_ = NULL;
@@ -170,7 +176,7 @@ void RadLayer::reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint
     
 }
 
-void RadLayer::radiationCB(const sensor_msgs::Image& rad_msg)
+void RadLayer::radiationCB(const radiation_layer::Radeye& rad_msg)
 {
   boost::recursive_mutex::scoped_lock lock(lock_);  // Ensure only this functon can interact with radiation radiation_msg_buffer_
   radiation_msg_buffer_.push_back(rad_msg);  // Place new message onto buffer
@@ -179,10 +185,10 @@ void RadLayer::radiationCB(const sensor_msgs::Image& rad_msg)
 
 void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &updates)
 {
-  std::list<sensor_msgs::Image> radiation_msg_buffer_copy_;  // Create blank buffer for observations
+  std::list<radiation_layer::Radeye> radiation_msg_buffer_copy_;  // Create blank buffer for observations
 
   boost::recursive_mutex::scoped_lock lock(lock_);  // Restrict access to buffer to this function only (i.e. can't be updated via radiationCB())
-  radiation_msg_buffer_copy_ = std::list<sensor_msgs::Image>(radiation_msg_buffer_);  // Make copy of current observation buffer
+  radiation_msg_buffer_copy_ = std::list<radiation_layer::Radeye>(radiation_msg_buffer_);  // Make copy of current observation buffer
   radiation_msg_buffer_.clear();  // Clear current observation buffer for new messages
   boost::recursive_mutex::scoped_lock unlock(lock_);  // Release access to observation buffer
 
@@ -193,24 +199,26 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
   }
 
   // Loop over all observations
-  for (std::list<sensor_msgs::Image>::iterator obs = radiation_msg_buffer_copy_.begin(); obs != radiation_msg_buffer_copy_.end(); obs++) {
+  for (std::list<radiation_layer::Radeye>::iterator obs = radiation_msg_buffer_copy_.begin(); obs != radiation_msg_buffer_copy_.end(); obs++) {
 
     // Convert observation frame to costmap frame at message timestamp
-    tf::StampedTransform transformStamped;  // Store transform between frames
+    // tf::StampedTransform transformStamped;  // Store transform between frames
+    geometry_msgs::TransformStamped transformStamped; //migrate to tf2
 
     try
     {
+      transformStamped = tfBuffer->lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp);
       // Get transform between observation frame and costmap frame.  tf_ is somehow passed to the layer (hence it is not declared in this layer), but I don't where or how
-      tf_ -> lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp, transformStamped);
+      // tf_ -> lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp, transformStamped);
     }
-    catch (tf::TransformException ex)
+    catch (tf2::TransformException ex)
     {
       ROS_ERROR("%s",ex.what());
       return;  // If cannot get transform return
     }
 
-    // Extract radiation data value from image message - associated with camera green channel
-    float value = obs -> data[1];  // Retrive 2nd channel (index 1) from data field in message
+    // Extract radiation data value from radeye message 
+    float value = obs -> measurement;  // See RadEye.msg
     // SHOULD PROBABLY DO SOME CHECKS HERE - index errors, no data errors, wrong format etc
 
     // Vector of x and y cell indices
@@ -225,7 +233,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       std::vector<geometry_msgs::Point> transformed_footprint;
       double yaw_sub = 0.0;
       // Transform footprint to be centred about the sensor
-      costmap_2d::transformFootprint(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), yaw_sub, sensor_footprint_, transformed_footprint);
+      costmap_2d::transformFootprint(transformStamped.transform.translation.x, transformStamped.transform.translation.y, yaw_sub, sensor_footprint_, transformed_footprint);
       
       // ROS_INFO("%d", int(transformed_footprint.size()));
 
@@ -240,7 +248,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       convexFillCells(footprint_locations, cell_locations);
     } else {  // end if inflate_radiation_
       costmap_2d::MapLocation loc;
-      if (!worldToMap(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), loc.x, loc.y)) {
+      if (!worldToMap(transformStamped.transform.translation.x, transformStamped.transform.translation.y, loc.x, loc.y)) {
       ROS_WARN("Observation out of bounds");
       continue;
       }
@@ -261,7 +269,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
 
       double cell_pos_x, cell_pos_y;
       mapToWorld(idx_x, idx_y, cell_pos_x, cell_pos_y);
-      double dist = distance(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), cell_pos_x, cell_pos_y);
+      double dist = distance(transformStamped.transform.translation.x, transformStamped.transform.translation.y, cell_pos_x, cell_pos_y);
       double dist_weighting = 1.0;
       if (averaging_scale_length_ > 0.0)
       {
