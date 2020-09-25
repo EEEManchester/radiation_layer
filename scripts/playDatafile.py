@@ -8,7 +8,7 @@ import sensor_msgs.msg as senmsg
 import radiation_layer.msg as rad_layer
 import tf2_ros as tf2
 
-
+from std_msgs.msg import String
 
 class filePublisher(object):
     """docstring for filePublisher"""
@@ -16,49 +16,50 @@ class filePublisher(object):
         rospy.init_node("radiationFromFile") # Init node called "radiationFromFile"
         radiationTopic = rospy.get_param("~radiationName","radiationTopic") # Name of the topic containing radiation data
 
-	self.radiationPublisher = rospy.Publisher(radiationTopic, rad_layer.Radeye, queue_size=2) # Publisher of image messages carrying radiation information
+        self.radiationPublisher = rospy.Publisher(radiationTopic, rad_layer.Radeye, queue_size=2) # Publisher of image messages carrying radiation information
         self.globalFrame = rospy.get_param("~globalFrame","map") # Set the frame in which the pointcloud should be referenced to
         self.childFrame = rospy.get_param("~childFrame","base_link") # Set the frame in which the pointcloud should be referenced to
 
-	# Load data file
-	# Data file format: x, y, z, counts
-	package_path = rospkg.RosPack().get_path('radiation_layer') 
-	data_file = '/data/radiation_sample.dat'
-	self.radData = np.loadtxt(package_path + data_file, delimiter=',') # Data file is comma seperated
-        nSamples = self.radData.shape[0]
+        # Load data file
+        # Data file format: x, y, z, counts
+        package_path = rospkg.RosPack().get_path('radiation_layer') 
+        data_file = '/data/radiation_sample.dat'
+        self.radData = np.loadtxt(package_path + data_file, delimiter=',') # Data file is comma seperated
+        self.nSamples = self.radData.shape[0] 
 
-	# Radiation intensity scaling factor
-	# Max value of radiation data is 38, therefore try to scale this to 254 of green channel
-	# Whilst remaining integer and linear
-	# Why 254 and not 255? LETHAL_OBSTACLE in costmap = 254
-	self.intensity_scale_factor =  np.floor(254.0/max(self.radData[:,3]))
-
+        # Radiation intensity scaling factor
+        # Max value of radiation data is 38, therefore try to scale this to 254 of green channel
+        # Whilst remaining integer and linear
+        # Why 254 and not 255? LETHAL_OBSTACLE in costmap = 254
+        self.intensity_scale_factor =  np.floor(254.0/max(self.radData[:,3]))
         self.seq = 0
+        self.rate = rospy.Rate(10) #Rate in Hz
 
-        rate = rospy.Rate(2) #Rate in Hz
-
+    def run(self):
         while not rospy.is_shutdown():
-            if self.seq < nSamples:
+            self.rate.sleep()
+
+            if self.seq < self.nSamples:
                 self.publishdata(self.radData[self.seq,:])
-                rate.sleep()
-            else:
-                rate.sleep()
+            self.rate.sleep()
+            
+
+
 
     def publishdata(self, data):
         time = rospy.Time.now()
-	# Update TF to match sensor location in x, y, z
+        # Update TF to match sensor location in x, y, z
         self.setTF(data[0], data[1], data[2], time)
 	
-	# Create blank RadEye message
+        # Create blank RadEye message
         message = rad_layer.Radeye()
-	# Populate header information
-	message.header.seq = self.seq
-	message.header.stamp = time
+        # Populate header information
+        message.header.seq = self.seq
+        message.header.stamp = time
         message.header.frame_id = self.childFrame
 
-	
-	# Set value of pixel to match radiation value
-	# Green channel = int( intensity modifier * radiation counts data)
+        # Set value of pixel to match radiation value
+        # Green channel = int( intensity modifier * radiation counts data)
         message.measurement = self.intensity_scale_factor*data[3] # Red, GREEN, blue channels, only green is populated
         self.radiationPublisher.publish(message)
         self.seq += 1
@@ -76,7 +77,7 @@ class filePublisher(object):
         t.transform.translation.y = y
         t.transform.translation.z = z
 	
-	# Assume no rotation
+        # Assume no rotation
     	t.transform.rotation.x = 0.0
     	t.transform.rotation.y = 0.0
     	t.transform.rotation.z = 0.0
@@ -84,11 +85,23 @@ class filePublisher(object):
 
         br.sendTransform(t)
 
+def talker():
+    pub = rospy.Publisher('chatter', String, queue_size=10)
+    rospy.init_node('talker', anonymous=True)
+    rate = rospy.Rate(10) # 10hz
+    while not rospy.is_shutdown():
+        hello_str = "hello world %s" % rospy.get_time()
+        rospy.loginfo(hello_str)
+        pub.publish(hello_str)
+        rate.sleep()
 
 if __name__ == "__main__":
 
     try:
         print("Starting radiation data player")
         s = filePublisher()
+        s.run()
         rospy.spin()
+        # talker()
+        
     except rospy.ROSInterruptException: pass
