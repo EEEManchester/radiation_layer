@@ -207,7 +207,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
 
     try
     {
-      transformStamped = tfBuffer->lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp);
+      transformStamped = tfBuffer->lookupTransform(global_frame_, obs -> header.frame_id, ros::Time(0));
       // Get transform between observation frame and costmap frame.  tf_ is somehow passed to the layer (hence it is not declared in this layer), but I don't where or how
       // tf_ -> lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp, transformStamped);
     }
@@ -231,7 +231,16 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       // As the footprint is circular, the yaw can be ignored (removes need for more TF and conversion)
       //  Would try: double yaw = tf2::getYaw(pose.pose.orientation); - need to get the right thing out of transformStamped
       std::vector<geometry_msgs::Point> transformed_footprint;
-      double yaw_sub = 0.0;
+
+      tf2::Quaternion q(
+        transformStamped.transform.rotation.x,
+        transformStamped.transform.rotation.y,
+        transformStamped.transform.rotation.z,
+       transformStamped.transform.rotation.w
+      );
+      tf2::Matrix3x3 m(q);
+      double roll, pitch, yaw_sub;
+      m.getRPY(roll, pitch, yaw_sub); 
       // Transform footprint to be centred about the sensor
       costmap_2d::transformFootprint(transformStamped.transform.translation.x, transformStamped.transform.translation.y, yaw_sub, sensor_footprint_, transformed_footprint);
       
