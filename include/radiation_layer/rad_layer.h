@@ -14,7 +14,8 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_listener.h> //migrate to tf2
-#include <radiation_layer/Radeye.h>
+// #include <radiation_layer/Radeye.h>    //commented
+#include <radeye/Radeye.h>                //added
 
 //#include <tf2_ros/buffer.h>
 //#include <ros/time.h>
@@ -45,7 +46,7 @@ private:
   void reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint32_t level);
   dynamic_reconfigure::Server<radiation_layer::RadiationLayerConfig> *dsrv_;
 
-  void radiationCB(const radiation_layer::Radeye& rad_msg); // Callback for incoming radiation messages
+  void radiationCB(const radeye::Radeye& rad_msg); // Callback for incoming radiation messages
   void updateObservations(std::list<std::pair<unsigned int, float> > &updates); // Process recent observations and return value to be added to costmap
   float* averages_;
   unsigned int* n_obs_;
@@ -69,7 +70,7 @@ private:
   std::vector<geometry_msgs::Point> sensor_footprint_;
 
   ros::Subscriber radiation_sub_;
-  std::list<radiation_layer::Radeye> radiation_msg_buffer_;
+  std::list<radeye::Radeye> radiation_msg_buffer_;
   std::string global_frame_; // Global frame of costmap
 
 

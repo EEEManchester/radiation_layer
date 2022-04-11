@@ -176,7 +176,7 @@ void RadLayer::reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint
     
 }
 
-void RadLayer::radiationCB(const radiation_layer::Radeye& rad_msg)
+void RadLayer::radiationCB(const radeye::Radeye& rad_msg)
 {
   boost::recursive_mutex::scoped_lock lock(lock_);  // Ensure only this functon can interact with radiation radiation_msg_buffer_
   radiation_msg_buffer_.push_back(rad_msg);  // Place new message onto buffer
@@ -185,10 +185,10 @@ void RadLayer::radiationCB(const radiation_layer::Radeye& rad_msg)
 
 void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &updates)
 {
-  std::list<radiation_layer::Radeye> radiation_msg_buffer_copy_;  // Create blank buffer for observations
+  std::list<radeye::Radeye> radiation_msg_buffer_copy_;  // Create blank buffer for observations
 
   boost::recursive_mutex::scoped_lock lock(lock_);  // Restrict access to buffer to this function only (i.e. can't be updated via radiationCB())
-  radiation_msg_buffer_copy_ = std::list<radiation_layer::Radeye>(radiation_msg_buffer_);  // Make copy of current observation buffer
+  radiation_msg_buffer_copy_ = std::list<radeye::Radeye>(radiation_msg_buffer_);  // Make copy of current observation buffer
   radiation_msg_buffer_.clear();  // Clear current observation buffer for new messages
   boost::recursive_mutex::scoped_lock unlock(lock_);  // Release access to observation buffer
 
@@ -199,7 +199,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
   }
 
   // Loop over all observations
-  for (std::list<radiation_layer::Radeye>::iterator obs = radiation_msg_buffer_copy_.begin(); obs != radiation_msg_buffer_copy_.end(); obs++) {
+  for (std::list<radeye::Radeye>::iterator obs = radiation_msg_buffer_copy_.begin(); obs != radiation_msg_buffer_copy_.end(); obs++) {
 
     // Convert observation frame to costmap frame at message timestamp
     // tf::StampedTransform transformStamped;  // Store transform between frames
