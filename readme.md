@@ -7,6 +7,12 @@ The existing ROS [navigation stack](http://wiki.ros.org/navigation) allows for o
 
 This plugin allows for additional layers of the stock ROS [costmap_2d](http://wiki.ros.org/costmap_2d) implementation to be added based on data from radiation instrumentation.  The cost associated with radiation levels can be scaled on an *ad hoc* basis.
 
+## Referencing
+
+This work is described in the paper:
+
+Andrew West, Thomas Wright, Ioannis Tsitsimpelis, Keir Groves, Malcolm J. Joyce, and Barry Lennox. 2022. “[Real-Time Avoidance of Ionising Radiation Using Layered Costmaps for Mobile Robots.](https://doi.org/10.3389/frobt.2022.862067)” Frontiers in Robotics and AI 9 (March). https://doi.org/10.3389/frobt.2022.862067.
+
 # Installation
 
 To build from this repo, clone the latest version from this repository into your catkin workspace and compile using
