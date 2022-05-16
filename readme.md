@@ -15,7 +15,16 @@ Andrew West, Thomas Wright, Ioannis Tsitsimpelis, Keir Groves, Malcolm J. Joyce,
 
 # Installation
 
-To build from this repo, clone the latest version from this repository into your catkin workspace and compile using
+This package has dependancy on the [radiation_msgs](https://github.com/EEEManchester/radiation_msgs) package, and this must be installed first:
+```
+cd catkin_ws/src
+git clone https://github.com/EEEManchester/radiation_msgs.git
+cd ..
+catkin_make
+```
+
+
+Once the radiation_msgs package is installed, to build from this repo, clone the latest version from this repository into your catkin workspace and compile using:
 
 ```
 cd catkin_ws/src
@@ -24,7 +33,7 @@ cd ..
 catkin_make
 ```
 
-This package currently has no dependancies on other packages, besides the stock ROS costmap_2d package from the navigation stack.
+This package is intended to be used with the ROS [costmap_2D](http://wiki.ros.org/costmap_2d) package from the navigation stack, therefore, this package will also need to be installed.  However, this is likely already installed on your system.
 
 # How it works
 
@@ -127,6 +136,18 @@ There are more options which can passed to the costmap layer including:
 Footprint and radius perform identically to those used of the robot footprint, however, this is a footprint around the frame of the sensor, not the robot.  The footprint argument will supersede any radius arguments, ensure the footprint argument is missing or commented out if wishing to use radius value.  The average scale length has been covered earlier, and ```combination_method``` allows the user to define how cost is incorporated in the layered costmap.  This includes taking the maximum value of all layers (0), overwriting all other layers (1), addition with cost of other layers (2), and maximum value whilst preserving unknown space (3).  Default is 0 (keep maximum value of all layers).
 
 The option ```minimum_weight``` can be useful when the edges of an inflated space are greatly different from the local average, and is causing issues with path planning.  By requiring a minimum total cell weight, only cells which have seen multiple observations, or very nearby observations are updated in the costmap.  It is recommended this is kept to the default value of ```0.0```.
+
+## Settings for Different Radiation Types
+### Alpha and Beta
+Alpha and Beta radiation have short path lengths, therefore are typically only observed in close proximity to a source.  It can be assumed, most of the time, that sources of Alpha and Beta can be treated as highly localised.
+
+Therefore, it is better to only use the footprint of the detector, e.g. a paddle sensor, for inflation/adding cost to the costmap.  Furthermore, the user can set the ```averaging_scale_length = 0.0```, and no distance weighting is applied.  This may be a more reliable approach when twinned with avoidance strategies.
+
+### Gamma
+As gamma radiation changes on larger length scales, interpolation can happen at sizes greater than the detector volume.  To have a robot sucessfullly avoid radiation, this enlarged interpolation area should be larger than the robot.  Tuning of this value is discussed in the journal article.  Furthermore, distance weighted averaging is then also encouraged to help build more realistic maps.
+
+### Neutrons
+Neutrons are likely to have scale lengths more akin to Gamma radiation transport, certainly further than Alpha or Beta radiation, therefore, it is best to treat them similarly to gamma radiation using distance weighted interpolation.
 
 
 # Bugs & Feature Requests

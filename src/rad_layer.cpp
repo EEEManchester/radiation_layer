@@ -51,7 +51,7 @@ void RadLayer::onInitialize()
   // Setup subscriber to topic, callback function = radiationCB
   radiation_sub_ = g_nh.subscribe(radiation_topic, 1, &RadLayer::radiationCB, this);
 
-  // Initialise threshold values - WILL REPLACE WITH PARAMETERS LATER
+  // Initialise threshold values - WILL REPLACE WITH RECONFIGURE PARAMETERS LATER
   upper_threshold_ = 0.2;  // At what averaged float value will = 254 (LETHAL_OBSTACLE) or 252 when not using lethal cost
   upper_threshold_scale_ = 3;
   ut_ = upper_threshold_ * pow(10.0, upper_threshold_scale_);
@@ -142,12 +142,23 @@ void RadLayer::reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint
     upper_threshold_scale_ = config.upper_threshold_scale;
     ut_ = upper_threshold_ * pow(10.0, upper_threshold_scale_);
 
+    // Check lower threshold < upper threshold
+    // Equals check also prevents a divide by zero condition for cost scaling
+    if (lt_ >= ut_)
+    {
+      // Swaps the highest and lowest values around into the right variables
+      double temp_lt = lt_;
+      lt_ = ut_;
+      ut_ = temp_lt+0.1;  // Add small amount to avoid divide by zero   
+      ROS_WARN("%s: Thresholds invalid - please check",node_name_.c_str());
+    }
+
     bool previous_use_lethal = use_lethal_;
     use_lethal_ = config.use_lethal;
     max_cost_ = use_lethal_ ? LETHAL_OBSTACLE : INSCRIBED_INFLATED_OBSTACLE - 1;  // If true, set max_cost_ lethal_obstacle, else set to 252 (use of ? is a stand in for a if-else statement)
     
 
-    // Used for logging changes in layer parameters
+    // Used for logging changes in layer parameters //
     // Enabled
     if (enabled_ != previous_enabled)
     {
@@ -170,7 +181,7 @@ void RadLayer::reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint
     
 }
 
-void RadLayer::radiationCB(const sensor_msgs::Image& rad_msg)
+void RadLayer::radiationCB(const radiation_msgs::DoseRate& rad_msg)
 {
   boost::recursive_mutex::scoped_lock lock(lock_);  // Ensure only this functon can interact with radiation radiation_msg_buffer_
   radiation_msg_buffer_.push_back(rad_msg);  // Place new message onto buffer
@@ -179,10 +190,10 @@ void RadLayer::radiationCB(const sensor_msgs::Image& rad_msg)
 
 void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &updates)
 {
-  std::list<sensor_msgs::Image> radiation_msg_buffer_copy_;  // Create blank buffer for observations
+  std::list<radiation_msgs::DoseRate> radiation_msg_buffer_copy_;  // Create blank buffer for observations
 
   boost::recursive_mutex::scoped_lock lock(lock_);  // Restrict access to buffer to this function only (i.e. can't be updated via radiationCB())
-  radiation_msg_buffer_copy_ = std::list<sensor_msgs::Image>(radiation_msg_buffer_);  // Make copy of current observation buffer
+  radiation_msg_buffer_copy_ = std::list<radiation_msgs::DoseRate>(radiation_msg_buffer_);  // Make copy of current observation buffer
   radiation_msg_buffer_.clear();  // Clear current observation buffer for new messages
   boost::recursive_mutex::scoped_lock unlock(lock_);  // Release access to observation buffer
 
@@ -193,7 +204,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
   }
 
   // Loop over all observations
-  for (std::list<sensor_msgs::Image>::iterator obs = radiation_msg_buffer_copy_.begin(); obs != radiation_msg_buffer_copy_.end(); obs++) {
+  for (std::list<radiation_msgs::DoseRate>::iterator obs = radiation_msg_buffer_copy_.begin(); obs != radiation_msg_buffer_copy_.end(); obs++) {
 
     // Convert observation frame to costmap frame at message timestamp
     tf::StampedTransform transformStamped;  // Store transform between frames
@@ -210,7 +221,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
     }
 
     // Extract radiation data value from image message - associated with camera green channel
-    float value = obs -> data[1];  // Retrive 2nd channel (index 1) from data field in message
+    float value = obs -> rate;  // Retrive 2nd channel (index 1) from data field in message
     // SHOULD PROBABLY DO SOME CHECKS HERE - index errors, no data errors, wrong format etc
 
     // Vector of x and y cell indices
@@ -226,9 +237,9 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       double yaw_sub = 0.0;
       // Transform footprint to be centred about the sensor
       costmap_2d::transformFootprint(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), yaw_sub, sensor_footprint_, transformed_footprint);
-      
-      // ROS_INFO("%d", int(transformed_footprint.size()));
 
+
+      // Loop over footprint points
       for (unsigned int i = 0; i < transformed_footprint.size(); ++i)
       {
         costmap_2d::MapLocation loc;
@@ -394,7 +405,7 @@ switch (combination_method_)
       updateWithMax(master_grid, min_i, min_j, max_i, max_j);
       break;
     case 1:  // Overwrite
-      updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+      updateWithOverwrite(master_grid, min_i, min_j, max_i, max_j);
       break;
     case 2:  // Addition
       updateWithAddition(master_grid, min_i, min_j, max_i, max_j);
@@ -483,6 +494,7 @@ std::vector<geometry_msgs::Point> RadLayer::makeSensorFootprintFromParams(ros::N
     }
   }
 
+  // If radius is given, use this instead of footprint
   if (nh.searchParam("radiation_radius", full_radius_param_name))
   {
     double radiation_radius;

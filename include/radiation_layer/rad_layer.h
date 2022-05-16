@@ -9,7 +9,7 @@
 #include <dynamic_reconfigure/server.h>
 
 //#include <message_filters/subscriber.h>
-#include <sensor_msgs/Image.h>
+#include <radiation_msgs/DoseRate.h>
 
 //#include <tf2_ros/buffer.h>
 //#include <ros/time.h>
@@ -35,12 +35,10 @@ public:
 
 
 private:
-  //void reconfigureCB(costmap_2d::GenericPluginConfig &config, uint32_t level);
-  // dynamic_reconfigure::Server<costmap_2d::GenericPluginConfig> *dsrv_;
   void reconfigureCB(radiation_layer::RadiationLayerConfig &config, uint32_t level);
   dynamic_reconfigure::Server<radiation_layer::RadiationLayerConfig> *dsrv_;
 
-  void radiationCB(const sensor_msgs::Image& rad_msg); // Callback for incoming radiation messages
+  void radiationCB(const radiation_msgs::DoseRate& rad_msg); // Callback for incoming radiation messages
   void updateObservations(std::list<std::pair<unsigned int, float> > &updates); // Process recent observations and return value to be added to costmap
   float* averages_;
   unsigned int* n_obs_;
@@ -64,7 +62,7 @@ private:
   std::vector<geometry_msgs::Point> sensor_footprint_;
 
   ros::Subscriber radiation_sub_;
-  std::list<sensor_msgs::Image> radiation_msg_buffer_;
+  std::list<radiation_msgs::DoseRate> radiation_msg_buffer_;
   std::string global_frame_; // Global frame of costmap
 
 

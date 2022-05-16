@@ -3,19 +3,19 @@
 import rospy
 import rospkg # Used to find path to data file
 import numpy as np # Used for simplified data file reading
-import geometry_msgs.msg as gmsg
-import sensor_msgs.msg as senmsg
-import tf2_ros as tf2
+import geometry_msgs.msg as gmsg # Used with publishing transforms
+from radiation_msgs.msg import DoseRate # Used for communicating radiation information
+import tf2_ros as tf2 # Used to publish transforms
 
 
 
 class filePublisher(object):
-    """docstring for filePublisher"""
+    """Publishes a text file of data to demonstrate use of the radiation costmap layer"""
     def __init__(self):
         rospy.init_node("radiationFromFile") # Init node called "radiationFromFile"
         radiationTopic = rospy.get_param("~radiationName","radiationTopic") # Name of the topic containing radiation data
 
-	self.radiationPublisher = rospy.Publisher(radiationTopic, senmsg.Image, queue_size=2) # Publisher of image messages carrying radiation information
+	self.radiationPublisher = rospy.Publisher(radiationTopic, DoseRate, queue_size=2) # Publisher of image messages carrying radiation information
         self.globalFrame = rospy.get_param("~globalFrame","map") # Set the frame in which the pointcloud should be referenced to
         self.childFrame = rospy.get_param("~childFrame","base_link") # Set the frame in which the pointcloud should be referenced to
 
@@ -24,21 +24,20 @@ class filePublisher(object):
 	package_path = rospkg.RosPack().get_path('radiation_layer') 
 	data_file = '/data/radiation_sample.dat'
 	self.radData = np.loadtxt(package_path + data_file, delimiter=',') # Data file is comma seperated
-        nSamples = self.radData.shape[0]
-
-	# Radiation intensity scaling factor
-	# Max value of radiation data is 38, therefore try to scale this to 254 of green channel
-	# Whilst remaining integer and linear
-	# Why 254 and not 255? LETHAL_OBSTACLE in costmap = 254
-	self.intensity_scale_factor =  np.floor(254.0/max(self.radData[:,3]))
+        self.nSamples = self.radData.shape[0]
 
         self.seq = 0
 
-        rate = rospy.Rate(2) #Rate in Hz
+        rate = rospy.Rate(5) #Rate in Hz
+
+        rospy.loginfo("Publishing radiation data")
 
         while not rospy.is_shutdown():
-            if self.seq < nSamples:
+            if self.seq < self.nSamples:
                 self.publishdata(self.radData[self.seq,:])
+                rate.sleep()
+            elif self.seq >= self.nSamples:
+                self.publishdata(self.radData[self.nSamples-1,:])
                 rate.sleep()
             else:
                 rate.sleep()
@@ -49,23 +48,25 @@ class filePublisher(object):
         self.setTF(data[0], data[1], data[2], time)
 	
 	# Create blank image message
-        message = senmsg.Image()
+        message = DoseRate()
 	# Populate header information
 	message.header.seq = self.seq
 	message.header.stamp = time
         message.header.frame_id = self.childFrame
-	# Set encoding type
-	message.encoding = 'rgb8'
-	# Single pixel camera
-        message.height = 1
-	message.width = 1
+        # Populate radiation information
+        message.radiation_type = 4 # Gamma
+        message.units = 0 # Counts per second
+        message.integration_time = 1.0 # Second
 	
-	
-	# Set value of pixel to match radiation value
-	# Green channel = int( intensity modifier * radiation counts data)
-        message.data = [0, int(self.intensity_scale_factor*data[3]), 0] # Red, GREEN, blue channels, only green is populated
+        # Set rate value to match radiation measured
+	message.rate = data[3]
+
+        # Publish message
         self.radiationPublisher.publish(message)
         self.seq += 1
+
+        if self.seq == self.nSamples:
+                rospy.loginfo("Finished playing back data file")
 	
 
     def setTF(self, x, y, z, time):
@@ -92,7 +93,7 @@ class filePublisher(object):
 if __name__ == "__main__":
 
     try:
-        print("Starting radiation data player")
+        rospy.loginfo("Starting radiation data player")
         s = filePublisher()
         rospy.spin()
     except rospy.ROSInterruptException: pass

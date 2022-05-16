@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   message_generation
   roscpp
+  radiation_msgs
 )
 
 ## System dependencies are found with CMake's conventions

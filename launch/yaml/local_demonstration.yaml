@@ -48,3 +48,5 @@ radiation:
     averaging_scale_length: 0.15  # Scale (variance mu of Gaussian kernel) in metres
     combination_method: 0  # default - 0 = UpdateWithMax, 1 = UpdateWithOverwrite, 2 = UpdateWithAddition, 3 = updateWithMaxPreserveNoInfo
     minimum_weight: 0.02  # default = 0.0, only update costmap with cells with weight above value
+    lower_threshold: 2.0
+    upper_threshold: 24.0

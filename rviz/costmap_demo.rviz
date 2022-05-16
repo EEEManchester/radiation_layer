@@ -61,7 +61,7 @@ Visualization Manager:
       Value: false
     - Alpha: 0.699999988
       Class: rviz/Map
-      Color Scheme: costmap
+      Color Scheme: map
       Draw Behind: false
       Enabled: true
       Name: Global_Costmap
@@ -71,9 +71,9 @@ Visualization Manager:
       Value: true
     - Alpha: 0.699999988
       Class: rviz/Map
-      Color Scheme: map
+      Color Scheme: costmap
       Draw Behind: false
-      Enabled: false
+      Enabled: true
       Name: Local_Costmap
       Topic: /local_costmap_2d/costmap/costmap
       Unreliable: false
