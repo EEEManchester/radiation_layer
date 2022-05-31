@@ -220,9 +220,8 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       return;  // If cannot get transform return
     }
 
-    // Extract radiation data value from image message - associated with camera green channel
-    float value = obs -> rate;  // Retrive 2nd channel (index 1) from data field in message
-    // SHOULD PROBABLY DO SOME CHECKS HERE - index errors, no data errors, wrong format etc
+    // Extract radiation data value from DoseRate message
+    float value = obs -> rate; 
 
     // Vector of x and y cell indices
     std::vector<costmap_2d::MapLocation> cell_locations;
@@ -230,12 +229,12 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
     if (inflate_radiation_) {
       // Vector of x and y cell indices
       std::vector<costmap_2d::MapLocation> footprint_locations;
-      // transformFootprint(x,y,yaw,footprint,footprint_out)
-      // As the footprint is circular, the yaw can be ignored (removes need for more TF and conversion)
-      //  Would try: double yaw = tf2::getYaw(pose.pose.orientation); - need to get the right thing out of transformStamped
+      // Output footprint
       std::vector<geometry_msgs::Point> transformed_footprint;
-      double yaw_sub = 0.0;
-      // Transform footprint to be centred about the sensor
+      
+      // Find yaw of radiation footprint
+      double yaw_sub = tf::getYaw(transformStamped.getRotation());
+      // Transform footprint to be centred about the sensor, transformFootprint(x,y,yaw,footprint,footprint_out)
       costmap_2d::transformFootprint(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), yaw_sub, sensor_footprint_, transformed_footprint);
 
 
