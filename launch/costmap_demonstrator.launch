@@ -1,9 +1,6 @@
 <launch>
 <!-- Set variables for filenames -->
 
-  <!-- Map file -->
-  <arg name="map_file" default="$(find radiation_layer)/data/map.yaml"/>
-
   <!-- Costmap yaml files -->
   <arg name="global_costmap_yaml" default="$(find radiation_layer)/launch/yaml/global_demonstration.yaml"/>
   <arg name="local_costmap_yaml" default="$(find radiation_layer)/launch/yaml/local_demonstration.yaml"/>
@@ -12,14 +9,10 @@
   <arg name="rviz_config" default="$(find radiation_layer)/rviz/costmap_demo.rviz"/>
 
 
-<!-- Run the map server -->
- 
-  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
-
 
 <!-- Play radiation sensor data -->
 
-  <node name="rad_player" pkg="radiation_layer" type="playDatafile.py" output="screen"/>
+  <node name="radiation_mimic" pkg="radiation_layer" type="radiation_wanderer.py" output="screen"/>
 
 
 <!-- launch costmap_2d nodes independently, usually this would be part of move_base -->
@@ -29,8 +22,8 @@
     <rosparam file="$(arg global_costmap_yaml)" command="load" ns="costmap" />
     <!-- thresholds can be changed via dynamic reconfigure, written in yaml, or launch file -->
     <rosparam ns="costmap/radiation">
-      upper_threshold: 30.0
-      lower_threshold: 4.0
+      upper_threshold: 1000.0
+      lower_threshold: 100.0
     </rosparam>
   </node>
 

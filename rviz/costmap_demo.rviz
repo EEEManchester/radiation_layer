@@ -78,7 +78,7 @@ Visualization Manager:
       Topic: /local_costmap_2d/costmap/costmap
       Unreliable: false
       Use Timestamp: false
-      Value: false
+      Value: true
     - Class: rviz/TF
       Enabled: true
       Frame Timeout: 15
@@ -98,6 +98,14 @@ Visualization Manager:
           base_link:
             {}
       Update Interval: 0
+      Value: true
+    - Alpha: 1
+      Class: rviz/Polygon
+      Color: 25; 255; 0
+      Enabled: true
+      Name: Polygon
+      Topic: /local_costmap_2d/costmap/footprint
+      Unreliable: false
       Value: true
   Enabled: true
   Global Options:
@@ -133,11 +141,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Scale: 132.25795
+      Scale: 90
       Target Frame: map
       Value: TopDownOrtho (rviz)
-      X: 1.93603277
-      Y: -0.658292651
+      X: 0
+      Y: 0
     Saved: ~
 Window Geometry:
   Displays:
@@ -155,5 +163,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1855
-  X: 65
+  X: 1985
   Y: 24
