@@ -18,7 +18,7 @@ Andrew West, Thomas Wright, Ioannis Tsitsimpelis, Keir Groves, Malcolm J. Joyce,
 This package has dependancy on the [radiation_msgs](https://github.com/EEEManchester/radiation_msgs) package, and this must be installed first:
 ```
 cd catkin_ws/src
-git clone https://github.com/EEEManchester/radiation_msgs.git
+git clone -b kinetic https://github.com/EEEManchester/radiation_msgs.git
 cd ..
 catkin_make
 ```
@@ -41,14 +41,16 @@ The plugin layer subscribes to a stamped topic representing ionising radiation, 
 
 The average radiation value at each costmap cell is maintained, even when the costmap is resized.  Radiation value can be any units or scale (e.g. counts per second, Sv/hr), as the actual cost is calculated based on upper and lower thresholds.  Using thresholds allows for the robot to ignore areas of low radiation (e.g. background levels), and completely avoid areas with elevated radiation (e.g. high enough to immediately cause an electronic fault).
 
-Cost in each cell ranges from 0 (free space - robot can travel with no penalty) to 254 (lethal obstacle - robot will certainly collide with an object), and therefore the average radiation value is scaled linearly between 0-254 based on:
+Cost in each cell ranges from 0 (free space - robot can travel with no penalty) to 252 (highest cost for a non-lethal obstacle), and therefore the average radiation value is scaled linearly between 0-252 based on:
 
 ```
-cost = 254 * (radiation_value - lower_threshold) / (upper_threshold - lower_threshold)
+cost = 252 * (radiation_value - lower_threshold) / (upper_threshold - lower_threshold)
 ```
 The upper and lower thresholds are managed by the user, and can be changed at any time through use of [dynamically reconfigurable](http://wiki.ros.org/dynamic_reconfigure) parameters.
 
-When the costmap is resized, all the averaged radiation values on a per grid cell basis are temporarily stored, then the costmap is repopulated once the costmap has been expanded.  In the event that the threshold values are altered (and therefore the cost 0-254 has changed), the entire plugin layer cost is recalculated and sent out to the rest of the costmap.
+When the costmap is resized, all the averaged radiation values on a per grid cell basis are temporarily stored, then the costmap is repopulated once the costmap has been expanded.  In the event that the threshold values are altered (and therefore the cost 0-252 has changed), the entire plugin layer cost is recalculated and sent out to the rest of the costmap.
+
+There is an option to use lethal costs (253), however, this can cause issues with blocking valid paths during planning and navigation, therefore it is generally not recommended.
 
 ## Inflating Cost
 
