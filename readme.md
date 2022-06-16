@@ -28,7 +28,7 @@ Once the radiation_msgs package is installed, to build from this repo, clone the
 
 ```
 cd catkin_ws/src
-git clone -b melodic https://github.com/EEEManchester/radiation_layer.git
+git clone -b noetic https://github.com/EEEManchester/radiation_layer.git
 cd ..
 catkin_make
 ```
