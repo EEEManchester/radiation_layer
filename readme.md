@@ -18,7 +18,7 @@ Andrew West, Thomas Wright, Ioannis Tsitsimpelis, Keir Groves, Malcolm J. Joyce,
 This package has dependancy on the [radiation_msgs](https://github.com/EEEManchester/radiation_msgs) package, and this must be installed first:
 ```
 cd catkin_ws/src
-git clone -b kinetic https://github.com/EEEManchester/radiation_msgs.git
+git clone https://github.com/EEEManchester/radiation_msgs.git
 cd ..
 catkin_make
 ```
@@ -28,7 +28,7 @@ Once the radiation_msgs package is installed, to build from this repo, clone the
 
 ```
 cd catkin_ws/src
-git clone https://github.com/EEEManchester/radiation_layer.git
+git clone -b kinetic https://github.com/EEEManchester/radiation_layer.git
 cd ..
 catkin_make
 ```
