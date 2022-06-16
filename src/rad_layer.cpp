@@ -207,14 +207,14 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
   for (std::list<radiation_msgs::DoseRate>::iterator obs = radiation_msg_buffer_copy_.begin(); obs != radiation_msg_buffer_copy_.end(); obs++) {
 
     // Convert observation frame to costmap frame at message timestamp
-    tf::StampedTransform transformStamped;  // Store transform between frames
+    geometry_msgs::TransformStamped transformStamped;  // Store transform between frames
 
     try
     {
       // Get transform between observation frame and costmap frame.  tf_ is somehow passed to the layer (hence it is not declared in this layer), but I don't where or how
-      tf_ -> lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp, transformStamped, ros::Duration(1.0));
+      transformStamped = tf_ -> lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp, ros::Duration(1.0));
     }
-    catch (tf::TransformException ex)
+    catch (tf2::TransformException ex)
     {
       ROS_ERROR("%s",ex.what());
       return;  // If cannot get transform return
@@ -233,9 +233,9 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       std::vector<geometry_msgs::Point> transformed_footprint;
       
       // Find yaw of radiation footprint
-      double yaw_sub = tf::getYaw(transformStamped.getRotation());
+      double yaw_sub = tf2::getYaw(transformStamped.transform.rotation);
       // Transform footprint to be centred about the sensor, transformFootprint(x,y,yaw,footprint,footprint_out)
-      costmap_2d::transformFootprint(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), yaw_sub, sensor_footprint_, transformed_footprint);
+      costmap_2d::transformFootprint(transformStamped.transform.translation.x, transformStamped.transform.translation.y, yaw_sub, sensor_footprint_, transformed_footprint);
 
 
       // Loop over footprint points
@@ -250,7 +250,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
       convexFillCells(footprint_locations, cell_locations);
     } else {  // end if inflate_radiation_
       costmap_2d::MapLocation loc;
-      if (!worldToMap(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), loc.x, loc.y)) {
+      if (!worldToMap(transformStamped.transform.translation.x, transformStamped.transform.translation.y, loc.x, loc.y)) {
       ROS_WARN("Observation out of bounds");
       continue;
       }
@@ -271,7 +271,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
 
       double cell_pos_x, cell_pos_y;
       mapToWorld(idx_x, idx_y, cell_pos_x, cell_pos_y);
-      double dist = distance(transformStamped.getOrigin().x(), transformStamped.getOrigin().y(), cell_pos_x, cell_pos_y);
+      double dist = distance(transformStamped.transform.translation.x, transformStamped.transform.translation.y, cell_pos_x, cell_pos_y);
       double dist_weighting = 1.0;
       if (averaging_scale_length_ > 0.0)
       {

@@ -26,10 +26,10 @@ plugins:
 #    - {name: inflation,        type: "costmap_2d::InflationLayer"}  # Inflation of obstacles into configuration space of robot
     - {name: radiation,        type: "radiation_layer_namespace::RadLayer"} # Radiation sensor data
 
-static_map:
-    map_topic: map
-    subscribe_to_updates: true 
-    lethal_cost_threshold: 100
+#static_map:
+#    map_topic: map
+#    subscribe_to_updates: true 
+#    lethal_cost_threshold: 100
 # Other options:= first_map_only: false, track_known_space: true, use_maximum: false, unknown_cost_value: int(-1), trinary_costmap: true
 
 #obstacles:
@@ -38,9 +38,9 @@ static_map:
 # Other options and default values:= inf_is_valid: false, min_obstacle_height: 0.0, max_obstacle_height: 2.0, expected_update_rate: 0.0, observation_persistence: 0.0
 # Not sure about these options, they might need to be placed globally above:= obstacle_range: 2.5 (ignore anything further than this), raytrace_range = 3.0 (only mark freespace up to this distance), transform_tolerance: 0.3
 
-inflation:
-    inflation_radius: 0.10
-    cost_scaling_factor: 10.0
+#inflation:
+#    inflation_radius: 0.10
+#    cost_scaling_factor: 10.0
 
 radiation:
     radiation_topic: radiationTopic
