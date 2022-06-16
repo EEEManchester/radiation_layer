@@ -22,7 +22,7 @@
     <rosparam file="$(arg global_costmap_yaml)" command="load" ns="costmap" />
     <!-- thresholds can be changed via dynamic reconfigure, written in yaml, or launch file -->
     <rosparam ns="costmap/radiation">
-      upper_threshold: 1000.0
+      upper_threshold: 999.0
       lower_threshold: 100.0
     </rosparam>
   </node>
