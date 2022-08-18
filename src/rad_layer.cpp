@@ -69,6 +69,9 @@ void RadLayer::onInitialize()
   dynamic_reconfigure::Server<radiation_layer::RadiationLayerConfig>::CallbackType cb = boost::bind(
       &RadLayer::reconfigureCB, this, _1, _2);
   dsrv_->setCallback(cb);
+
+  // Publisher for raw averages data
+  raw_pub_ = nh.advertise<std_msgs::Float32MultiArray>(node_name_ + "/raw", 2);
 }
 
 
@@ -85,8 +88,8 @@ void RadLayer::matchSize()
             master->getOriginX(), master->getOriginY());
 
   // Resize arrays for data averages and weight_obs per cell
-  unsigned int size_x = master->getSizeInCellsX();
-  unsigned int size_y = master->getSizeInCellsY();
+  size_x = master->getSizeInCellsX();
+  size_y = master->getSizeInCellsY();
   // Set up correct size for averages_
   if (averages_ == NULL) {
     //ROS_WARN("RadLayer::updateCosts(): averages_ array is NULL");
@@ -389,6 +392,8 @@ void RadLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, do
   *min_y = -std::numeric_limits<float>::max();
   *max_x = std::numeric_limits<float>::max();
   *max_y = std::numeric_limits<float>::max();
+
+  publishRawData();
 }
 
 void RadLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i,
@@ -503,6 +508,31 @@ std::vector<geometry_msgs::Point> RadLayer::makeSensorFootprintFromParams(ros::N
     inflate_radiation_ = true;
   }
   return points;
+}
+
+void RadLayer::publishRawData()
+{
+  std_msgs::Float32MultiArray msg;
+
+  // Height
+  msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
+  msg.layout.dim[0].label = "height";
+  msg.layout.dim[0].size = size_x;
+  msg.layout.dim[0].stride = size_x * size_y;
+  // Width
+  msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
+  msg.layout.dim[1].label = "width";
+  msg.layout.dim[1].size = size_y;
+  msg.layout.dim[1].stride = size_y;
+
+  msg.layout.data_offset = 0;
+
+  std::vector<float> raw_vector(averages_, averages_ + (size_x * size_y));
+
+  msg.data.clear();
+  msg.data = raw_vector;
+
+  raw_pub_.publish(msg);
 }
 
 } // end namespace

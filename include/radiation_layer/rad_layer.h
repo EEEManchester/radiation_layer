@@ -10,6 +10,9 @@
 
 //#include <message_filters/subscriber.h>
 #include <radiation_msgs/DoseRate.h>
+#include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/MultiArrayLayout.h>
+#include <std_msgs/MultiArrayDimension.h>
 
 //#include <tf2_ros/buffer.h>
 //#include <ros/time.h>
@@ -26,6 +29,7 @@ public:
   virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y, double* max_x,
                              double* max_y);
   virtual void updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j);
+  virtual void publishRawData();
   bool isDiscretized()
   {
     return true;
@@ -55,6 +59,7 @@ private:
   double upper_threshold_, lower_threshold_, ut_, lt_;
   int upper_threshold_scale_, lower_threshold_scale_, max_cost_;
   unsigned int scaledValue(float value);
+  unsigned int size_x, size_y;
 
   double averaging_scale_length_, minimum_weight_;
   bool inflate_radiation_;
@@ -71,6 +76,8 @@ private:
 
   void updatePreserveNoInfo(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j);
   std::vector<geometry_msgs::Point> makeSensorFootprintFromParams(ros::NodeHandle& nh);
+
+  ros::Publisher raw_pub_;
 
 };
 }
