@@ -44,7 +44,7 @@ plugins:
 
 radiation:
     radiation_topic: radiationTopic
-#    radiation_footprint: [[-0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0.5, -0.5]]
+#   radiation_footprint: [[-0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0.5, -0.5]]
     radiation_radius: 0.5
     averaging_scale_length: 0.25  # Scale (variance mu of Gaussian kernel) in metres
     combination_method: 3  # default - 0 = UpdateWithMax, 1 = UpdateWithOverwrite, 2 = UpdateWithAddition, 3 = updateWithMaxPreserveNoInfo
