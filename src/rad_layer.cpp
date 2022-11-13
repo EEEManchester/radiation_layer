@@ -207,7 +207,7 @@ void RadLayer::updateObservations(std::list<std::pair<unsigned int, float> > &up
 
     try
     {
-      transformStamped = tfBuffer->lookupTransform(global_frame_, obs -> header.frame_id, ros::Time(0));
+      transformStamped = tf_ -> lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp, ros::Duration(1.0));
       // Get transform between observation frame and costmap frame.  tf_ is somehow passed to the layer (hence it is not declared in this layer), but I don't where or how
       // tf_ -> lookupTransform(global_frame_, obs -> header.frame_id, obs -> header.stamp, transformStamped);
     }
