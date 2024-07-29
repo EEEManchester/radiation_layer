@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import rospy
-import rospkg # Used to find path to data file
 import geometry_msgs.msg as gmsg # Used with publishing transforms
 from radiation_msgs.msg import DoseRate # Used for communicating radiation information
 import tf2_ros as tf2 # Used to publish transforms
@@ -73,10 +72,10 @@ class filePublisher(object):
         
         # Publish message
         self.radiationPublisher.publish(message)
-	
+    
 
     def setTF(self, angle, radius, time):
-    	br = tf2.TransformBroadcaster()
+        br = tf2.TransformBroadcaster()
         t = gmsg.TransformStamped()
 
         t.header.stamp = time
@@ -87,13 +86,13 @@ class filePublisher(object):
         t.transform.translation.x = x
         t.transform.translation.y = y
         t.transform.translation.z = self.z
-	
-	    # Maintain orientation normal to origin
+    
+        # Maintain orientation normal to origin
         quat = tft.quaternion_from_euler(0, 0, angle + maths.pi/2) # 
-    	t.transform.rotation.x = quat[0]
-    	t.transform.rotation.y = quat[1]
-    	t.transform.rotation.z = quat[2]
-    	t.transform.rotation.w = quat[3]
+        t.transform.rotation.x = quat[0]
+        t.transform.rotation.y = quat[1]
+        t.transform.rotation.z = quat[2]
+        t.transform.rotation.w = quat[3]
 
         br.sendTransform(t)
 
